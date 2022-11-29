@@ -12,6 +12,6 @@
       "skipLibCheck": true,
       "resolveJsonModule": true
   },
-  "include": ["src"],
+  "include": ["src", "dist/sintapi.js", "examples/demo/sintapi.js"],
   "exclude": ["dist", "node_modules"]
 }

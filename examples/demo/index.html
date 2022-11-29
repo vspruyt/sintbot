@@ -4,14 +4,82 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Demo of ricky0123/vad</title>
-    <link
+    <title>De Sinterklaas telefoon</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:ital,wght@0,300;0,400;1,300;1,400&display=swap" rel="stylesheet">
+    <!-- <link
       rel="stylesheet"
       href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css"
-    />
+    /> -->
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad@0.2.0/dist/index.browser.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad@0.2.0/dist/index.browser.js"></script>    
+    <script src="sintapi.js"></script>
+    <script type="text/javascript">
+      
+    mic_muted = false
+    function toggleMic(){           
+      mic_muted = !mic_muted      
+      if(mic_muted){
+        if (myvad.listening === true)
+          window.toggleVad()
+        document.getElementById("mic_icon").style.backgroundColor = "#ff6db7"
+        document.getElementById("indicator").textContent = "Sinterklaas kan je niet horen. Klink op het roze icoontje om je microfoon weer aan te zetten."        
+      }
+      else{
+        if (myvad.listening === false)
+          window.toggleVad()
+        document.getElementById("mic_icon").style.backgroundColor = "#6DB7FF"
+        document.getElementById("indicator").textContent = "Sinterklaas luistert, zeg je iets tegen hem?"
+      }
+    }
+
+function openForm() {
+  document.getElementById("myOverlay").style.display = "block";  
+}
+
+naam = 'Stig'
+leeftijd=5
+hobbies=['Autos', 'Transformers', 'Rolschaatsen']
+geslacht="jongen"
+chat_history = []
+// Close the full screen search box
+
+function closeForm(checkvalidity=true) {
+  if(checkvalidity){
+    myform = document.getElementById("detailsform")
+    if(myform.checkValidity()){
+      naam=document.getElementById("naam").value
+      leeftijd=document.getElementById("leeftijd").value
+      hobbies=document.getElementById("hobbies").value.split(',');   
+      geslacht=document.getElementById("geslacht").value; 
+      document.getElementById("myOverlay").style.display = "none";  
+      generateResponse(naam, leeftijd, hobbies, geslacht, chat_history, window.onResponse)
+    }    
+  }
+  else{
+    document.getElementById("myOverlay").style.display = "none";  
+    generateResponse(naam, leeftijd, hobbies, geslacht, chat_history, window.onResponse)
+  }
+}
+
+function validateFields(){
+  myform = document.getElementById("detailsform")
+  if(myform.checkValidity())
+    document.getElementById("button").style.display="block"
+  else
+    document.getElementById("button").style.display="none"
+}
+
+
+    </script>
     <script type="module">
+      var speech_ctr = 0
+
       import { interpolateInferno } from "https://cdn.skypack.dev/d3-scale-chromatic@3"
 
       const loading = setInterval(() => {
@@ -20,20 +88,71 @@
         indicator.innerHTML = message + ".".repeat((dots.length + 1) % 7)
       }, 200)
 
+      window.onSpeech = function(resbuffer){     
+        // const resbuffer = res.arrayBuffer()        
+        const base64 = vad.utils.arrayBufferToBase64(resbuffer)        
+        const url = `data:audio/mp3;base64,${base64}`                
+        const audio = document.getElementById('audio'+speech_ctr+'response')
+        audio.src=url
+        document.getElementById(speech_ctr+'response').style.display="block"        
+        audio.onended = (event) => {
+          window.toggleVad();
+        };
+        audio.play();
+      }
+
+      window.onResponse = function(res){
+        generateAudio(res['text'], window.onSpeech)
+        chat_history.push(res['text'])
+        console.log(res['text'])
+
+        const url = `data:audio/mp3;base64,`
+        const el = addAudio(url, speech_ctr+'response')
+        const speechList = document.getElementById("playlist")
+        speechList.prepend(el)
+        document.getElementById(
+                "caption"+speech_ctr+'response'
+              ).innerHTML = "<span class=\"realistic-marker-highlight\" style=\"text-color:black; color:black;\"><b>Sinterklaas:&nbsp;&nbsp;</b></span>"+res['text']        
+      }
+
+      window.onTranscribed = function(res){
+
+        if(res == null || res['text']==null){
+          const element = document.getElementById(speech_ctr);
+          element.remove();
+          --speech_ctr
+          window.toggleVad()          
+        }
+        else{
+          chat_history.push(res['text'])
+          generateResponse(naam, leeftijd, hobbies, geslacht, chat_history, window.onResponse)          
+          document.getElementById(
+                "caption"+speech_ctr
+              ).innerHTML = "<span class=\"realistic-marker-highlight2\" style=\"text-color:black; color:black;\"><b>"+naam+":&nbsp;&nbsp;</b></span>"+res['text']
+              
+          document.getElementById(speech_ctr).style.display="block"
+        }
+      }
+
       try {
         const myvad = await vad.MicVAD.new({
           positiveSpeechThreshold: 0.8,
-          minSpeechFrames: 5,
+          minSpeechFrames: 1,
           preSpeechPadFrames: 10,
           onFrameProcessed: (probs) => {
             const indicatorColor = interpolateInferno(probs.isSpeech / 2)
             document.body.style.setProperty("--indicator-color", indicatorColor)
           },
           onSpeechEnd: (arr) => {
+            ++speech_ctr
+            window.toggleVad() // Turn off VAD now that we have the audio            
+            document.getElementById("indicator").textContent = "Sinterklaas denkt even na..."
+            document.getElementById("listening_icon").style.visibility = "hidden";
+            processAudio(new Int16Array(vad.utils.encodeWAV(arr, 1)), speech_ctr, naam, leeftijd, hobbies, geslacht, chat_history, window.onTranscribed).then( (res) => { return res; });
             const wavBuffer = vad.utils.encodeWAV(arr)
             const base64 = vad.utils.arrayBufferToBase64(wavBuffer)
             const url = `data:audio/wav;base64,${base64}`
-            const el = addAudio(url)
+            const el = addAudio(url, speech_ctr)
             const speechList = document.getElementById("playlist")
             speechList.prepend(el)
           },
@@ -41,26 +160,26 @@
         window.myvad = myvad
 
         clearInterval(loading)
-        window.toggleVad = () => {
-          console.log("ran toggle vad")
+        window.toggleVad = () => {          
           if (myvad.listening === false) {
             myvad.start()
-            document.getElementById("toggle_vad_button").textContent =
-              "STOP VAD"
-            document.getElementById("indicator").textContent = "VAD is running"
+            // document.getElementById("toggle_vad_button").textContent =
+              // "Pauzeer het gesprek"
+            document.getElementById("indicator").textContent = "Sinterklaas luistert, zeg je iets tegen hem?"
+            document.getElementById("listening_icon").style.visibility = "visible";  
           } else {
             myvad.pause()
-            document.getElementById("toggle_vad_button").textContent =
-              "START VAD"
-            document.getElementById(
-              "indicator"
-            ).innerHTML = `VAD is <span style="color:red">stopped</span>`
+            // document.getElementById("toggle_vad_button").textContent =
+              // "Hervat het gesprek"
+            // document.getElementById(
+            //   "indicator"
+            // ).innerHTML = `VAD is <span style="color:red">stopped</span>`
             const indicatorColor = interpolateInferno(0)
             document.body.style.setProperty("--indicator-color", indicatorColor)
           }
         }
-        window.toggleVad()
-        document.getElementById("toggle_vad_button").disabled = false
+        // window.toggleVad()
+        // document.getElementById("toggle_vad_button").disabled = false
       } catch (e) {
         console.error("Failed:", e)
         clearInterval(loading)
@@ -69,20 +188,32 @@
         ).innerHTML = `<span style="color:red">VAD failed to load</span>`
       }
 
-      function addAudio(audioUrl) {
-        const entry = document.createElement("li")
+      function addAudio(audioUrl, id) {
+        const entry = document.createElement("li")        
+        entry.style.display="none"
+        entry.setAttribute("id", id)        
+
+        const fig = document.createElement("figure")
+        const caption = document.createElement("figcaption")
+        caption.setAttribute("id", "caption"+id)         
+        caption.style.paddingBottom = "10px"
+        fig.appendChild(caption)
+
+        entry.appendChild(fig)
+
         const audio = document.createElement("audio")
+        audio.setAttribute("id", "audio"+id)
         audio.controls = true
         audio.src = audioUrl
         entry.classList.add("newItem")
-        entry.appendChild(audio)
+        fig.appendChild(audio)
         return entry
       }
     </script>
   </head>
   <style>
     html {
-      box-sizing: border-box;
+      box-sizing: border-box;      
     }
     *,
     *::after,
@@ -90,33 +221,50 @@
       box-sizing: inherit;
     }
     body {
-      --indicator-color: black;
-      background: radial-gradient(black 55%, var(--indicator-color));
+      /* --indicator-color: black; */
+      /* background: radial-gradient(black 55%, var(--indicator-color)); */
       min-height: 100vh;
       color: white;
-      margin: 0;
+      margin: 0;          
+      padding-top:20px;
+
+      background: url(wallpaper.jpeg);
+      background-repeat: no-repeat;
+      background-size: cover;
+
+      font-family: 'Josefin Sans', sans-serif;
+
     }
+    /* .content-container{
+      background: radial-gradient(black 55%, var(--indicator-color));
+    } */
+
     h1 {
       font-weight: bold;
       color: #fff;
       font-size: 16pt;
     }
+
     .content {
       padding-inline: 20px;
       margin-inline: auto;
       padding-top: 20px;
+      background-color: rgba(23, 23, 23, 0.95);
+      border: 1px solid #6DB7FF;      
+
     }
     @media (min-width: 1250px) {
       .content {
-        padding-top: 100px;
+        padding-top: 20px;
         width: 800px;
-        padding-inline: 0;
+        padding-inline: 0;        
       }
     }
 
     #playlist {
       max-height: 400px;
-      overflow-y: scroll;
+      height:400px;
+      overflow-y: scroll;      
       list-style: none;
       padding-left: 0;
     }
@@ -124,7 +272,7 @@
       background-color: rgba(100, 100, 100, 0.33);
     }
     #playlist li:first-child {
-      border-left: 2px blue solid;
+      border-left: 2px #6DB7FF solid;
     }
     #playlist li {
       max-height: 0;
@@ -150,10 +298,11 @@
     .control-row {
       display: flex;
       justify-content: space-between;
+      background: radial-gradient(black 25%, var(--indicator-color));
     }
     .header {
       display: flex;
-      justify-content: flex-end;
+      justify-content: center;      
     }
     .github-icon {
       color: white;
@@ -163,30 +312,406 @@
       color: red;
       text-decoration: none;
     }
+
+
+
+    /* The overlay effect with black background */
+.overlay {  
+  height: 100%;
+  width: 100%;
+  display: none;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  background-color: rgb(0,0,0);
+  background-color: rgba(0,0,0, 0.9); /* Black with a little bit see-through */
+  font-family: 'Josefin Sans', sans-serif;
+}
+
+/* The content */
+.overlay-content {  
+  position: relative;
+  /* top: 46%; */
+  width: 80%;  
+  max-width: 300px;
+  /* border: 1px solid red; */
+  text-align: center;
+  /* margin-top: 30px; */
+  margin: auto;
+  /* background-color:yellow */
+}
+
+/* Close button */
+.overlay .closebtn {
+  position: absolute;
+  top: 20px;
+  right: 45px;
+  font-size: 60px;
+  cursor: pointer;
+  color: white;
+}
+
+.overlay .closebtn:hover {
+  color: #ccc;
+}
+
+/* Style the search field */
+.overlay input[type=text] {
+  padding: 15px;
+  font-size: 17px;
+  border: none;
+  float: left;
+  width: 80%;
+  background: white;
+  font-family: 'Josefin Sans', sans-serif;
+}
+
+.overlay input[type=text]:hover {
+  background: #f1f1f1;
+}
+
+/* Style the submit button */
+.overlay button {
+  float: left;
+  width: 20%;
+  padding: 15px;
+  background: #ddd;
+  font-size: 17px;
+  border: none;
+  cursor: pointer;
+  font-family: 'Josefin Sans', sans-serif;
+}
+
+.overlay button:hover {
+  background: #bbb;
+}
+
+/* Add styles to the form container */
+.form-container {
+  max-width: 300px;
+  /* padding: 10px; */
+  /* background-color: white; */
+  font-family: 'Josefin Sans', sans-serif;
+}
+
+
+/* Full-width input fields */
+.form-container input[type=text], .form-container input[type=number], .form-container select{
+  width: 100%;
+  padding: 15px;
+  margin: 5px 0 22px 0;
+  border: none;
+  background: #f1f1f1;
+  font-family: 'Josefin Sans', sans-serif;
+}
+
+/* When the inputs get focus, do something */
+.form-container input[type=text]:focus, .form-container input[type=number]:focus, .form-container select:focus {
+  background-color: #ddd;
+  outline: none;
+}
+
+/* Set a style for the submit/login button */
+.overlay-content .btn {
+  background-color: #ff6db7;
+  color: white;
+  padding: 16px 20px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom:10px;
+  opacity: 0.8;
+}
+
+/* Add a red background color to the cancel button */
+.form-container .cancel {
+  background-color: red;
+}
+
+/* Add some hover effects to buttons */
+.overlay-content .btn:hover, .open-button:hover {
+  opacity: 1;
+}
+
+
+
+.realistic-marker-highlight{
+  position:relative;
+}
+.realistic-marker-highlight:before{
+  content:"";
+  background-color:#ff6db7;
+  width:100%;
+  height:1em;
+  position:absolute;
+  z-index:-1;
+  filter:url(#marker-shape);
+  left:-0.25em;
+  top:0.1em;
+  padding:0 0.25em;
+  color: black;
+}
+
+.realistic-marker-highlight2{
+  position:relative;
+}
+.realistic-marker-highlight2:before{
+  content:"";
+  background-color:#6DB7FF;
+  width:100%;
+  height:1em;
+  position:absolute;
+  z-index:-1;
+  filter:url(#marker-shape);
+  left:-0.25em;
+  top:0.1em;
+  padding:0 0.25em;
+  color: black;
+}
+
+
+.lds-heart {
+  display: inline-block;
+  position: relative;
+  width: 80px;
+  height: 80px;
+  transform: rotate(45deg);
+  transform-origin: 40px 40px;
+}
+.lds-heart div {
+  top: 32px;
+  left: 32px;
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  background: #6DB7FF;
+  animation: lds-heart 1.2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+}
+.lds-heart div:after,
+.lds-heart div:before {
+  content: " ";
+  position: absolute;
+  display: block;
+  width: 32px;
+  height: 32px;
+  background: #6DB7FF;
+}
+.lds-heart div:before {
+  left: -24px;
+  border-radius: 50% 0 0 50%;
+}
+.lds-heart div:after {
+  top: -24px;
+  border-radius: 50% 50% 0 0;
+}
+@keyframes lds-heart {
+  0% {
+    transform: scale(0.95);
+  }
+  5% {
+    transform: scale(1.1);
+  }
+  39% {
+    transform: scale(0.85);
+  }
+  45% {
+    transform: scale(1);
+  }
+  60% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(0.9);
+  }
+}
+
+
+
+.google-microphone {
+  width:1em; height:1em;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  cursor: pointer;
+}
+.shadow {
+  position:relative;
+  margin: 5% auto;
+  border-radius:50%;
+  width:1.1667em; height:1.1667em;
+  background: #DBDBDB;
+  top:20%;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  box-shadow: 0px 0px 4px 2.667px #DBDBDB; 
+}
+
+@-webkit-keyframes move_eye { 
+  from { 
+    width:1.333em;
+    height:1.333em;
+  } to { 
+    width:2em;
+    height:2em; 
+  }  
+}
+
+.listening {
+-webkit-animation: move_eye 0.4s cubic-bezier(0.25,0.1,0.25,1) 0s infinite alternate;
+}
+
+.gn{
+  position:relative;
+  margin: 5% auto;
+  background-color: #6DB7FF;
+  border-radius:50%;
+  width:1.1667em; height:1.1667em;
+}
+:before, :after{
+  content:'';
+  position:absolute;
+  background-color:black;
+}
+.gn:after{
+  top:30%; left:43%;
+  height:15%; width:14%;
+  border-top-left-radius:50%;
+  border-top-right-radius:50%;
+}
+.gn:before{
+  top:40%; left:43%;
+  height:15%; width:14%;
+  border-bottom-left-radius:50%;
+  border-bottom-right-radius:50%;
+}
+.mc{
+  position:absolute;
+  top:50%; left:37%;
+  height:24%;
+  width:26.5%;
+  overflow:hidden;
+}
+.mc:before{
+  bottom:50%;
+  width:100%; height:100%;
+  box-sizing:border-box;
+  border-radius:50%;
+  border:0.1em solid black;
+  background:none;
+}
+.mc:after{
+  top:50%; left:40%;
+  width:20%; height:25%;
+}
+
+
+
   </style>
   <body>
     <div class="content-container">
       <div class="content">
+
+
+        <div id="myOverlay" class="overlay">
+          
+          <div class="overlay-content">
+            <form class="form-container" id="detailsform">
+              <h1 class="realistic-marker-highlight" style="color:black" >Met wie spreekt de Sint?</h1>
+          
+              <label for="naam"><b>Wat is je naam?</b></label>
+              <input oninput="validateFields()" onchange="validateFields()" type="text" placeholder="Vul je naam in" name="naam" id="naam" required>
+
+              <br />
+          
+              <label for="geslacht"><b>Ben je een jongen of een meisje?</b></label>
+              <select name="geslacht" id="geslacht" oninput="validateFields()" onchange="validateFields()" >
+                <option value="jongen">Jongen</option>
+                <option value="meisje">Meisje</option>
+              </select>              
+
+              <br />
+          
+              <label for="leeftijd"><b>Wat is je leeftijd?</b></label>
+              <input oninput="validateFields()" onchange="validateFields()"  type="number" placeholder="Vul je leeftijd in" name="leeftijd" id="leeftijd" required>
+
+              <br />
+          
+              <label for="hobbies"><b>Welke dingen of hobbies vind je leuk?</b></label>
+              <input oninput="validateFields()" onchange="validateFields()"  type="text" placeholder="Auto's, transformers, poppen, schmink" name="hobbies" id="hobbies" required>
+                                                                 
+            </form>            
+            <button id="button" class="btn" onclick="closeForm()" style="display:none">Klaar!</button>  
+            
+            <div class="lds-heart"><div></div></div>
+          </div>
+        </div>
+        
+
+
         <div class="header">
-          <a
+          <h1>De Sinterklaas Telefoon</h1>       
+          <!-- <a
             class="github-icon"
             href="https://github.com/ricky0123/vad"
             target="_blank"
           >
             <i class="fa fa-github"></i> /ricky0123/vad
-          </a>
+          </a> -->
+          <!-- <div class="github-icon lds-heart" id="listening_icon" style="visibility:hidden"><div></div></div> -->         
         </div>
-        <h1>Voice Activity Detector (VAD) Demo</h1>
-        <div class="control-row">
+        <!-- <h1>De Sinterklaas Telefoon</h1>        -->
+        <div class="control-row" style="border:3px solid #6dffb5; padding:10px">
           <div id="indicator">
-            VAD is <span style="color: red">LOADING</span>
+            De telefoon wordt <span style="color: red">opgestart</span>...
           </div>
-          <button id="toggle_vad_button" onclick="window.toggleVad()" disabled>
-            START VAD
-          </button>
-        </div>
-        <ol id="playlist" reversed></ol>
-      </div>
-    </div>
+          <div class="google-microphone" style="visibility:hidden" id="listening_icon" onclick="toggleMic()"><div class="shadow listening"><div class="gn" id="mic_icon"><div class="mc"></div></div></div></div>
+          <!-- <button id="toggle_vad_button" onclick="window.toggleVad()" disabled>                        -->
+          </button>          
+        </div>        
+        <ol id="playlist" reversed></ol>                
+      </div>      
+    </div>    
+
+    <script type="text/javascript">
+      // TODO: Uncomment this line, and remove the next line
+      openForm()                   
+
+      // Get the input field
+      var input = document.getElementById("naam");
+
+      // Execute a function when the user presses a key on the keyboard
+      input.addEventListener("keypress", function(event) {
+        // If the user presses the "Enter" key on the keyboard
+        if (event.key === "Enter") {
+          closeForm()
+        }
+      });
+
+      // Get the input field
+      var input = document.getElementById("hobbies");
+
+      // Execute a function when the user presses a key on the keyboard
+      input.addEventListener("keypress", function(event) {
+        // If the user presses the "Enter" key on the keyboard
+        if (event.key === "Enter") {
+          closeForm()
+        }
+      });
+
+    </script>
+
   </body>
+
+  <svg xmlns="//www.w3.org/2000/svg" version="1.1" class="svg-filters" style="display:none;">
+    <defs>
+      <filter id="marker-shape">
+        <feTurbulence type="fractalNoise" baseFrequency="0 0.15" numOctaves="1" result="warp" />
+        <feDisplacementMap xChannelSelector="R" yChannelSelector="G" scale="30" in="SourceGraphic" in2="warp" />
+      </filter>
+    </defs>
+  </svg>
+
 </html>
+
